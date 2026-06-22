@@ -1177,6 +1177,19 @@ namespace SCZip.UI
                 quickRt.SetAsLastSibling();
             }
 
+            if (_view.pickerListContent != null)
+            {
+                var listVlg = _view.pickerListContent.GetComponent<VerticalLayoutGroup>();
+                if (listVlg != null)
+                {
+                    listVlg.childControlWidth = true;
+                    listVlg.childForceExpandWidth = true;
+                    listVlg.childControlHeight = true;
+                    listVlg.childForceExpandHeight = false;
+                    listVlg.spacing = 1;
+                }
+            }
+
             var scroll = _view.pathPicker.transform.Find("PickerScroll") as RectTransform;
             if (scroll != null)
             {
@@ -1305,9 +1318,11 @@ namespace SCZip.UI
         {
             var go = new GameObject("PickerHint", typeof(RectTransform));
             go.transform.SetParent(_view.pickerListContent, false);
-            go.AddComponent<LayoutElement>().preferredHeight = UiListMetrics.PickerRowHeight;
+            var le = go.AddComponent<LayoutElement>();
+            le.preferredHeight = UiListMetrics.PickerRowHeight;
+            le.flexibleWidth = 1;
             var label = go.AddComponent<Text>();
-            label.font = _font;
+            label.font = AppBarCaptionFont.Get(_font);
             label.text = message;
             label.fontSize = UiListMetrics.PickerRowFontSize;
             label.color = new Color(0.46f, 0.46f, 0.46f);
@@ -1326,11 +1341,42 @@ namespace SCZip.UI
             return path.Length <= maxLen ? path : "…" + path.Substring(path.Length - (maxLen - 1));
         }
 
+        private static string FormatSaveLocationDisplay(string dir)
+        {
+            if (string.IsNullOrEmpty(dir))
+                return "";
+
+            var normalized = Path.GetFullPath(dir)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var folderName = Path.GetFileName(normalized);
+            if (string.IsNullOrEmpty(folderName))
+                folderName = normalized;
+
+            return $"{folderName}\n{ShortenPathForDisplay(normalized)}";
+        }
+
+        private void EnsureDialogMessageReady()
+        {
+            if (_view.dialogMessage == null)
+                return;
+
+            _view.dialogMessage.horizontalOverflow = HorizontalWrapMode.Wrap;
+            _view.dialogMessage.verticalOverflow = VerticalWrapMode.Overflow;
+            _view.dialogMessage.lineSpacing = 1.15f;
+            _view.dialogMessage.alignment = TextAnchor.UpperLeft;
+
+            var le = _view.dialogMessage.GetComponent<LayoutElement>();
+            if (le != null)
+                le.preferredHeight = 68;
+        }
+
         private void BuildPickerRow(string name, string path)
         {
             var go = new GameObject("PickerRow", typeof(RectTransform));
             go.transform.SetParent(_view.pickerListContent, false);
-            go.AddComponent<LayoutElement>().preferredHeight = UiListMetrics.PickerRowHeight;
+            var rowLe = go.AddComponent<LayoutElement>();
+            rowLe.preferredHeight = UiListMetrics.PickerRowHeight;
+            rowLe.flexibleWidth = 1;
             var img = go.AddComponent<Image>();
             img.color = Color.white;
             var btn = go.AddComponent<Button>();
@@ -1339,9 +1385,11 @@ namespace SCZip.UI
             Stretch(textGo.GetComponent<RectTransform>());
             var label = textGo.AddComponent<Text>();
             label.font = _font;
-            label.text = "📁 " + name;
+            label.text = name == ".." ? ".." : "[D] " + name;
             label.fontSize = UiListMetrics.PickerRowFontSize;
+            label.color = Color.black;
             label.alignment = TextAnchor.MiddleLeft;
+            label.horizontalOverflow = HorizontalWrapMode.Overflow;
             var labelRt = textGo.GetComponent<RectTransform>();
             labelRt.offsetMin = new Vector2(16, 0);
             label.raycastTarget = false;
@@ -1443,11 +1491,15 @@ namespace SCZip.UI
         private void ShowCreateDialog(string dir, string defaultName)
         {
             EnsureDialogInputReady();
+            EnsureDialogMessageReady();
+
+            var saveDir = Path.GetFullPath(dir)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
             var format = AppServices.Settings.DefaultFormat;
             _view.dialogFormat.value = format == ArchiveFormat.TarGzip ? 1 : 0;
-            _view.dialogTitle.text = "New archive";
-            _view.dialogMessage.text = $"Save to:\n{dir}";
+            _view.dialogTitle.text = "新建压缩包";
+            _view.dialogMessage.text = $"保存到：\n{FormatSaveLocationDisplay(saveDir)}";
             _view.dialogInput.text = defaultName;
             SetDialogInputVisible(true);
             SetVisible(_view.dialogFormat.gameObject, true);
@@ -1463,7 +1515,7 @@ namespace SCZip.UI
                 if (!AppServices.FeatureGate.CanCreate(outFormat))
                     outFormat = ArchiveFormat.Zip;
 
-                RunCreateArchive(Path.Combine(dir, name), outFormat, name);
+                RunCreateArchive(Path.Combine(saveDir, name), outFormat, name);
             };
             SetVisible(_view.dialogOverlay, true);
 
@@ -1499,6 +1551,7 @@ namespace SCZip.UI
         private void ShowDialog(string title, string message, string defaultInput, bool showInput, Action onOk)
         {
             EnsureDialogInputReady();
+            EnsureDialogMessageReady();
 
             _view.dialogTitle.text = title;
             _view.dialogMessage.text = message;

@@ -379,7 +379,12 @@ namespace SCZip.Editor
             content.anchorMax = new Vector2(1, 1);
             content.pivot = new Vector2(0.5f, 1);
             content.sizeDelta = new Vector2(0, 0);
-            content.gameObject.AddComponent<VerticalLayoutGroup>();
+            var listVlg = content.gameObject.AddComponent<VerticalLayoutGroup>();
+            listVlg.childControlWidth = true;
+            listVlg.childForceExpandWidth = true;
+            listVlg.childControlHeight = true;
+            listVlg.childForceExpandHeight = false;
+            listVlg.spacing = 1;
             content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             scroll.viewport = viewport;
             scroll.content = content;
@@ -434,7 +439,10 @@ namespace SCZip.Editor
             vlg.childForceExpandHeight = false;
 
             view.dialogTitle = CreateLayoutText(dialog.transform, "Dialog", 18, Color.black, font, 28);
-            view.dialogMessage = CreateLayoutText(dialog.transform, "", 14, GrayText, font, 48);
+            view.dialogMessage = CreateLayoutText(dialog.transform, "", 14, GrayText, font, 68);
+            view.dialogMessage.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.dialogMessage.verticalOverflow = VerticalWrapMode.Overflow;
+            view.dialogMessage.lineSpacing = 1.15f;
 
             var inputRowGo = new GameObject("DialogInput", typeof(RectTransform));
             inputRowGo.transform.SetParent(dialog.transform, false);
