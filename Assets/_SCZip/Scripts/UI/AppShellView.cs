@@ -70,7 +70,6 @@ namespace SCZip.UI
         public Text dialogMessage;
         public InputField dialogInput;
         public Dropdown dialogFormat;
-        public ArchiveFormatSelector dialogFormatSelector;
         public Button dialogOk;
         public Button dialogCancel;
 

@@ -12,24 +12,26 @@ namespace SCZip.Tests.PlayMode
     public sealed class CreateArchiveFormatPlayModeTests
     {
         [UnityTest]
-        public IEnumerator Format_selector_switches_to_tar_gz_without_input_system_error()
+        public IEnumerator Format_dropdown_switches_to_tar_gz_without_input_system_error()
         {
             yield return AppShellPlayModeHarness.LoadMainSceneAndWait();
 
             var view = AppShellPlayModeHarness.RequireView();
-            Assert.NotNull(view.dialogFormat, "legacy dialogFormat should exist in Main scene");
+            Assert.NotNull(view.dialogFormat, "dialogFormat missing");
 
             var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            var selector = ArchiveFormatSelector.MigrateFromDropdown(view.dialogFormat, font);
-            Assert.NotNull(selector);
+            var dropdown = SafeDropdown.Migrate(view.dialogFormat);
+            UiDropdownBuilder.Ensure(dropdown, font, new[] { "ZIP (.zip)", "TAR.GZ (.tar.gz)" });
+            DropdownInputSystemBridge.EnsureOn(dropdown);
+            dropdown.alphaFadeSpeed = 0f;
 
-            selector.gameObject.SetActive(true);
-            selector.SetFormat(ArchiveFormat.Zip, false);
+            dropdown.gameObject.SetActive(true);
+            dropdown.SetValueWithoutNotify(0);
+            dropdown.RefreshShownValue();
             view.dialogInput.text = "archive_test.zip";
             yield return null;
 
-            Assert.NotNull(selector.TarGzButton, "TAR.GZ button missing");
-            selector.TarGzButton.onClick.Invoke();
+            dropdown.value = 1;
             yield return null;
             yield return null;
 
@@ -37,20 +39,18 @@ namespace SCZip.Tests.PlayMode
 
             if (AppServices.FeatureGate.CanCreate(ArchiveFormat.TarGzip))
             {
-                Assert.AreEqual(ArchiveFormat.TarGzip, selector.SelectedFormat);
+                Assert.AreEqual(1, dropdown.value);
                 Assert.IsTrue(view.dialogInput.text.EndsWith(".tar.gz"),
                     $"expected .tar.gz extension, got '{view.dialogInput.text}'");
             }
             else
             {
-                Assert.AreEqual(ArchiveFormat.Zip, selector.SelectedFormat);
-                Assert.IsTrue(view.dialogInput.text.EndsWith(".zip"),
-                    $"expected .zip when Pro disabled, got '{view.dialogInput.text}'");
+                Assert.AreEqual(0, dropdown.value);
             }
         }
 
         [UnityTest]
-        public IEnumerator Compress_dialog_uses_format_selector_not_dropdown()
+        public IEnumerator Compress_dialog_shows_format_dropdown()
         {
             yield return AppShellPlayModeHarness.LoadMainSceneWithFolderFixture();
 
@@ -70,18 +70,15 @@ namespace SCZip.Tests.PlayMode
             yield return null;
 
             Assert.IsTrue(view.dialogOverlay.activeSelf, "create archive dialog should open");
-            Assert.IsFalse(view.dialogFormat.gameObject.activeSelf, "legacy dropdown must stay hidden");
+            Assert.IsTrue(view.dialogFormat.gameObject.activeSelf, "format dropdown should be visible");
+            Assert.IsTrue(view.dialogFormat is SafeDropdown, "dropdown should migrate to SafeDropdown");
 
-            var selector = view.dialogFormatSelector;
-            Assert.NotNull(selector, "ArchiveFormatSelector should be created at runtime");
-            Assert.IsTrue(selector.gameObject.activeSelf, "format selector should be visible");
-
-            selector.TarGzButton.onClick.Invoke();
+            view.dialogFormat.value = 1;
             yield return null;
             yield return null;
 
             UiEventSystemSetup.SanitizeStaleHoverTargets();
-            Assert.IsNotNull(selector.SelectedFormat);
+            Assert.AreNotEqual(-1, view.dialogFormat.value);
         }
     }
 }

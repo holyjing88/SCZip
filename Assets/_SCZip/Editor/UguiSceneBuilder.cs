@@ -460,11 +460,14 @@ namespace SCZip.Editor
 
             view.dialogInput = CreateDialogInputField(inputRowGo.transform, font);
 
-            var formatGo = new GameObject("DialogFormatSelector", typeof(RectTransform));
-            formatGo.transform.SetParent(dialog.transform, false);
-            formatGo.AddComponent<LayoutElement>().preferredHeight = 64;
-            view.dialogFormatSelector = formatGo.AddComponent<ArchiveFormatSelector>();
-            view.dialogFormatSelector.Build(font);
+            var dropdownGo = new GameObject("DialogFormat", typeof(RectTransform));
+            dropdownGo.transform.SetParent(dialog.transform, false);
+            dropdownGo.AddComponent<LayoutElement>().preferredHeight = 36;
+            dropdownGo.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.95f);
+            view.dialogFormat = dropdownGo.AddComponent<SafeDropdown>();
+            view.dialogFormat.alphaFadeSpeed = 0f;
+            UiDropdownBuilder.Ensure(view.dialogFormat, font, new[] { "ZIP (.zip)", "TAR.GZ (.tar.gz)" });
+            DropdownInputSystemBridge.EnsureOn(view.dialogFormat);
 
             var buttons = new GameObject("Buttons", typeof(RectTransform));
             buttons.transform.SetParent(dialog.transform, false);
