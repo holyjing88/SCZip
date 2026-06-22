@@ -72,6 +72,9 @@ namespace SCZip.UI
             var module = es.GetComponent<InputSystemUIInputModule>();
             if (module != null && module.actionsAsset == null)
                 module.AssignDefaultActions();
+
+            if (es.GetComponent<InputSystemUiHoverGuard>() == null)
+                es.gameObject.AddComponent<InputSystemUiHoverGuard>();
 #else
             if (es.GetComponent<StandaloneInputModule>() == null)
                 es.gameObject.AddComponent<StandaloneInputModule>();
@@ -116,6 +119,31 @@ namespace SCZip.UI
         }
 
         /// <summary>
+        /// Removes destroyed GameObjects from pointer hover lists before EventSystem processes input.
+        /// </summary>
+        public static void SanitizeStaleHoverTargets()
+        {
+#if ENABLE_INPUT_SYSTEM
+            var es = EventSystem.current;
+            if (es == null)
+                return;
+
+            var module = es.GetComponent<InputSystemUIInputModule>();
+            if (module == null || !module.enabled)
+                return;
+
+            try
+            {
+                ForEachPointerEventData(module, SanitizePointerEventData);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[SCZip] Failed to sanitize UI pointers: {ex.Message}");
+            }
+#endif
+        }
+
+        /// <summary>
         /// InputSystemUIInputModule keeps pointerEnter/hovered across frames; clear before destroying UI under the pointer.
         /// </summary>
         public static void ClearInputSystemPointerState()
@@ -141,6 +169,76 @@ namespace SCZip.UI
         }
 
 #if ENABLE_INPUT_SYSTEM
+        private static void ForEachPointerEventData(InputSystemUIInputModule module, Action<PointerEventData> action)
+        {
+            var statesField = typeof(InputSystemUIInputModule).GetField(
+                "m_PointerStates", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (statesField == null)
+                return;
+
+            var states = statesField.GetValue(module);
+            if (states == null)
+                return;
+
+            var statesType = states.GetType();
+            var lengthField = statesType.GetField("length");
+            var firstValueField = statesType.GetField("firstValue");
+            if (lengthField == null || firstValueField == null)
+                return;
+
+            var count = (int)lengthField.GetValue(states);
+            var additionalField = statesType.GetField("additionalValues");
+            var additional = additionalField?.GetValue(states) as Array;
+
+            for (var i = 0; i < count; i++)
+            {
+                var model = i == 0 ? firstValueField.GetValue(states) : additional?.GetValue(i - 1);
+                if (model == null)
+                    continue;
+
+                var modelType = model.GetType();
+                if (modelType.GetField("eventData")?.GetValue(model) is PointerEventData eventData)
+                    action(eventData);
+            }
+        }
+
+        private static void SanitizePointerEventData(PointerEventData eventData)
+        {
+            if (eventData == null)
+                return;
+
+            if (eventData.pointerEnter != null && !eventData.pointerEnter)
+                eventData.pointerEnter = null;
+
+            if (eventData.pointerPress != null && !eventData.pointerPress)
+                eventData.pointerPress = null;
+
+            if (eventData.rawPointerPress != null && !eventData.rawPointerPress)
+                eventData.rawPointerPress = null;
+
+            if (eventData.pointerDrag != null && !eventData.pointerDrag)
+                eventData.pointerDrag = null;
+
+            for (var h = eventData.hovered.Count - 1; h >= 0; h--)
+            {
+                if (!eventData.hovered[h])
+                    eventData.hovered.RemoveAt(h);
+            }
+        }
+
+        private static void WipePointerEventData(PointerEventData eventData)
+        {
+            SanitizePointerEventData(eventData);
+
+            eventData.hovered.Clear();
+            eventData.pointerEnter = null;
+            eventData.pointerPress = null;
+            eventData.pointerDrag = null;
+            eventData.rawPointerPress = null;
+            eventData.pointerCurrentRaycast = default;
+            eventData.pointerPressRaycast = default;
+        }
+
         private static void WipePointerHoverState(InputSystemUIInputModule module)
         {
             var statesField = typeof(InputSystemUIInputModule).GetField(
@@ -160,7 +258,7 @@ namespace SCZip.UI
 
             var count = (int)lengthField.GetValue(states);
             var additionalField = statesType.GetField("additionalValues");
-            var additional = additionalField?.GetValue(states) as System.Array;
+            var additional = additionalField?.GetValue(states) as Array;
 
             for (var i = 0; i < count; i++)
             {
@@ -173,22 +271,8 @@ namespace SCZip.UI
                 WipeButtonState(modelType.GetField("rightButton")?.GetValue(model));
                 WipeButtonState(modelType.GetField("middleButton")?.GetValue(model));
 
-                if (modelType.GetField("eventData")?.GetValue(model) is not PointerEventData eventData)
-                    continue;
-
-                for (var h = eventData.hovered.Count - 1; h >= 0; h--)
-                {
-                    if (!eventData.hovered[h])
-                        eventData.hovered.RemoveAt(h);
-                }
-
-                eventData.hovered.Clear();
-                eventData.pointerEnter = null;
-                eventData.pointerPress = null;
-                eventData.pointerDrag = null;
-                eventData.rawPointerPress = null;
-                eventData.pointerCurrentRaycast = default;
-                eventData.pointerPressRaycast = default;
+                if (modelType.GetField("eventData")?.GetValue(model) is PointerEventData eventData)
+                    WipePointerEventData(eventData);
             }
         }
 

@@ -1369,6 +1369,7 @@ namespace SCZip.UI
                 return;
 
             UiDropdownBuilder.Ensure(_view.dialogFormat, _font, CreateFormatLabels);
+            DropdownInputSystemBridge.EnsureOn(_view.dialogFormat);
 
             var dialog = _view.dialogFormat.transform.parent;
             if (dialog != null && dialog.Find("DialogFormatLabel") == null)
@@ -1398,6 +1399,8 @@ namespace SCZip.UI
         {
             if (_view.dialogInput == null)
                 return;
+
+            UiEventSystemSetup.ClearUiSelection();
 
             var format = index == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip;
             if (!AppServices.FeatureGate.CanCreate(format))
@@ -1733,6 +1736,7 @@ namespace SCZip.UI
 
             SetVisible(_view.dialogOverlay, false);
             _dialogOkAction = null;
+            UiEventSystemSetup.ClearUiSelection();
         }
 
         private void OnDialogOk()

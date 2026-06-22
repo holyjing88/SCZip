@@ -466,6 +466,7 @@ namespace SCZip.Editor
             dropdownGo.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.95f);
             view.dialogFormat = dropdownGo.AddComponent<Dropdown>();
             UiDropdownBuilder.Ensure(view.dialogFormat, font, new[] { "ZIP (.zip)", "TAR.GZ (.tar.gz)" });
+            DropdownInputSystemBridge.EnsureOn(view.dialogFormat);
 
             var buttons = new GameObject("Buttons", typeof(RectTransform));
             buttons.transform.SetParent(dialog.transform, false);
