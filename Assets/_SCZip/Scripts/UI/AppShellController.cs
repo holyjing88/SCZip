@@ -210,16 +210,7 @@ namespace SCZip.UI
             _view.dialogCancel.onClick.AddListener(HideDialog);
             _view.dialogOk.onClick.AddListener(OnDialogOk);
 
-            if (_view.dialogFormat.options.Count == 0)
-            {
-                _view.dialogFormat.options = new List<Dropdown.OptionData>
-                {
-                    new("ZIP (.zip)"),
-                    new("TAR.GZ (.tar.gz)")
-                };
-            }
-
-            _view.dialogFormat.value = 0;
+            EnsureDialogFormatReady();
         }
 
         private static void AddClick(GameObject go, UnityEngine.Events.UnityAction action)
@@ -1370,6 +1361,82 @@ namespace SCZip.UI
                 le.preferredHeight = 68;
         }
 
+        private static readonly string[] CreateFormatLabels = { "ZIP (.zip)", "TAR.GZ (.tar.gz)" };
+
+        private void EnsureDialogFormatReady()
+        {
+            if (_view.dialogFormat == null)
+                return;
+
+            UiDropdownBuilder.Ensure(_view.dialogFormat, _font, CreateFormatLabels);
+
+            var dialog = _view.dialogFormat.transform.parent;
+            if (dialog != null && dialog.Find("DialogFormatLabel") == null)
+            {
+                var labelGo = new GameObject("DialogFormatLabel", typeof(RectTransform));
+                labelGo.transform.SetParent(dialog, false);
+                labelGo.transform.SetSiblingIndex(_view.dialogFormat.transform.GetSiblingIndex());
+                labelGo.AddComponent<LayoutElement>().preferredHeight = 22;
+                var label = labelGo.AddComponent<Text>();
+                label.font = _font;
+                label.text = "压缩格式";
+                label.fontSize = 14;
+                label.color = new Color(0.2f, 0.2f, 0.2f);
+                label.alignment = TextAnchor.MiddleLeft;
+                label.raycastTarget = false;
+            }
+
+            var formatLe = _view.dialogFormat.GetComponent<LayoutElement>();
+            if (formatLe != null)
+                formatLe.preferredHeight = 36;
+
+            _view.dialogFormat.onValueChanged.RemoveListener(OnCreateDialogFormatChanged);
+            _view.dialogFormat.onValueChanged.AddListener(OnCreateDialogFormatChanged);
+        }
+
+        private void OnCreateDialogFormatChanged(int index)
+        {
+            if (_view.dialogInput == null)
+                return;
+
+            var format = index == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip;
+            if (!AppServices.FeatureGate.CanCreate(format))
+            {
+                ShowToast("TAR.GZ 需要 SCZip Pro，已切换为 ZIP");
+                _view.dialogFormat.SetValueWithoutNotify(0);
+                format = ArchiveFormat.Zip;
+            }
+
+            _view.dialogInput.text = ApplyArchiveExtension(_view.dialogInput.text, format);
+            _view.dialogFormat.RefreshShownValue();
+        }
+
+        private static ArchiveFormat GetSelectedCreateFormat(Dropdown dropdown) =>
+            dropdown != null && dropdown.value == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip;
+
+        private ArchiveFormat GetSelectedCreateFormat() => GetSelectedCreateFormat(_view.dialogFormat);
+
+        private static string ApplyArchiveExtension(string name, ArchiveFormat format)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return name;
+
+            return StripArchiveExtension(name.Trim()) + ArchiveFormatRegistry.GetDefaultExtension(format);
+        }
+
+        private static string StripArchiveExtension(string name)
+        {
+            if (name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+                return name[..^7];
+            if (name.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase))
+                return name[..^4];
+            if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                return name[..^4];
+            if (name.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
+                return name[..^3];
+            return name;
+        }
+
         private void BuildPickerRow(string name, string path)
         {
             var go = new GameObject("PickerRow", typeof(RectTransform));
@@ -1492,29 +1559,35 @@ namespace SCZip.UI
         {
             EnsureDialogInputReady();
             EnsureDialogMessageReady();
+            EnsureDialogFormatReady();
 
             var saveDir = Path.GetFullPath(dir)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
             var format = AppServices.Settings.DefaultFormat;
-            _view.dialogFormat.value = format == ArchiveFormat.TarGzip ? 1 : 0;
+            if (!AppServices.FeatureGate.CanCreate(format))
+                format = ArchiveFormat.Zip;
+
+            _view.dialogFormat.SetValueWithoutNotify(format == ArchiveFormat.TarGzip ? 1 : 0);
+            _view.dialogFormat.RefreshShownValue();
             _view.dialogTitle.text = "新建压缩包";
             _view.dialogMessage.text = $"保存到：\n{FormatSaveLocationDisplay(saveDir)}";
-            _view.dialogInput.text = defaultName;
+            _view.dialogInput.text = ApplyArchiveExtension(defaultName, format);
             SetDialogInputVisible(true);
             SetVisible(_view.dialogFormat.gameObject, true);
             _dialogOkAction = () =>
             {
                 var name = _view.dialogInput.text?.Trim();
                 if (string.IsNullOrEmpty(name)) return;
-                if (!name.Contains('.'))
-                    name += ArchiveFormatRegistry.GetDefaultExtension(
-                        _view.dialogFormat.value == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip);
 
-                var outFormat = _view.dialogFormat.value == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip;
+                var outFormat = GetSelectedCreateFormat();
                 if (!AppServices.FeatureGate.CanCreate(outFormat))
+                {
+                    ShowToast("TAR.GZ 需要 SCZip Pro，已使用 ZIP");
                     outFormat = ArchiveFormat.Zip;
+                }
 
+                name = ApplyArchiveExtension(name, outFormat);
                 RunCreateArchive(Path.Combine(saveDir, name), outFormat, name);
             };
             SetVisible(_view.dialogOverlay, true);

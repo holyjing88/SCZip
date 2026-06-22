@@ -465,11 +465,7 @@ namespace SCZip.Editor
             dropdownGo.AddComponent<LayoutElement>().preferredHeight = 36;
             dropdownGo.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.95f);
             view.dialogFormat = dropdownGo.AddComponent<Dropdown>();
-            view.dialogFormat.options = new System.Collections.Generic.List<Dropdown.OptionData>
-            {
-                new("ZIP (.zip)"),
-                new("TAR.GZ (.tar.gz)")
-            };
+            UiDropdownBuilder.Ensure(view.dialogFormat, font, new[] { "ZIP (.zip)", "TAR.GZ (.tar.gz)" });
 
             var buttons = new GameObject("Buttons", typeof(RectTransform));
             buttons.transform.SetParent(dialog.transform, false);
