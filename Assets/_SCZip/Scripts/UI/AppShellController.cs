@@ -24,6 +24,7 @@ namespace SCZip.UI
         private PathPickerMode _pickerMode;
         private string _pickerPath;
         private Action _dialogOkAction;
+        private ArchiveFormatSelector _formatSelector;
         private Font _font;
         private Coroutine _fileListRebuildCoroutine;
         private readonly Dictionary<NavigationSource, Button> _navButtons = new();
@@ -1361,63 +1362,59 @@ namespace SCZip.UI
                 le.preferredHeight = 68;
         }
 
-        private static readonly string[] CreateFormatLabels = { "ZIP (.zip)", "TAR.GZ (.tar.gz)" };
+        private ArchiveFormatSelector RequireFormatSelector()
+        {
+            if (_formatSelector != null)
+                return _formatSelector;
+
+            if (_view.dialogFormatSelector != null)
+            {
+                _formatSelector = _view.dialogFormatSelector;
+                _formatSelector.Build(_font);
+            }
+            else if (_view.dialogFormat != null)
+            {
+                _formatSelector = ArchiveFormatSelector.MigrateFromDropdown(_view.dialogFormat, _font);
+                _view.dialogFormatSelector = _formatSelector;
+            }
+
+            if (_formatSelector == null)
+                return null;
+
+            if (_view.dialogFormat != null && _view.dialogFormat.gameObject.activeSelf)
+                _view.dialogFormat.gameObject.SetActive(false);
+
+            var legacyLabel = _formatSelector.transform.parent?.Find("DialogFormatLabel");
+            if (legacyLabel != null)
+                legacyLabel.gameObject.SetActive(false);
+
+            _formatSelector.FormatChanged -= OnCreateDialogFormatChanged;
+            _formatSelector.FormatChanged += OnCreateDialogFormatChanged;
+            return _formatSelector;
+        }
 
         private void EnsureDialogFormatReady()
         {
-            if (_view.dialogFormat == null)
-                return;
-
-            UiDropdownBuilder.Ensure(_view.dialogFormat, _font, CreateFormatLabels);
-            DropdownInputSystemBridge.EnsureOn(_view.dialogFormat);
-
-            var dialog = _view.dialogFormat.transform.parent;
-            if (dialog != null && dialog.Find("DialogFormatLabel") == null)
-            {
-                var labelGo = new GameObject("DialogFormatLabel", typeof(RectTransform));
-                labelGo.transform.SetParent(dialog, false);
-                labelGo.transform.SetSiblingIndex(_view.dialogFormat.transform.GetSiblingIndex());
-                labelGo.AddComponent<LayoutElement>().preferredHeight = 22;
-                var label = labelGo.AddComponent<Text>();
-                label.font = _font;
-                label.text = "压缩格式";
-                label.fontSize = 14;
-                label.color = new Color(0.2f, 0.2f, 0.2f);
-                label.alignment = TextAnchor.MiddleLeft;
-                label.raycastTarget = false;
-            }
-
-            var formatLe = _view.dialogFormat.GetComponent<LayoutElement>();
-            if (formatLe != null)
-                formatLe.preferredHeight = 36;
-
-            _view.dialogFormat.onValueChanged.RemoveListener(OnCreateDialogFormatChanged);
-            _view.dialogFormat.onValueChanged.AddListener(OnCreateDialogFormatChanged);
+            RequireFormatSelector();
         }
 
-        private void OnCreateDialogFormatChanged(int index)
+        private void OnCreateDialogFormatChanged(ArchiveFormat format)
         {
             if (_view.dialogInput == null)
                 return;
 
-            UiEventSystemSetup.ClearUiSelection();
-
-            var format = index == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip;
-            if (!AppServices.FeatureGate.CanCreate(format))
+            if (!AppServices.FeatureGate.CanCreate(format) && format == ArchiveFormat.TarGzip)
             {
                 ShowToast("TAR.GZ 需要 SCZip Pro，已切换为 ZIP");
-                _view.dialogFormat.SetValueWithoutNotify(0);
+                _formatSelector?.SetFormat(ArchiveFormat.Zip, false);
                 format = ArchiveFormat.Zip;
             }
 
             _view.dialogInput.text = ApplyArchiveExtension(_view.dialogInput.text, format);
-            _view.dialogFormat.RefreshShownValue();
         }
 
-        private static ArchiveFormat GetSelectedCreateFormat(Dropdown dropdown) =>
-            dropdown != null && dropdown.value == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip;
-
-        private ArchiveFormat GetSelectedCreateFormat() => GetSelectedCreateFormat(_view.dialogFormat);
+        private ArchiveFormat GetSelectedCreateFormat() =>
+            _formatSelector != null ? _formatSelector.SelectedFormat : ArchiveFormat.Zip;
 
         private static string ApplyArchiveExtension(string name, ArchiveFormat format)
         {
@@ -1501,7 +1498,6 @@ namespace SCZip.UI
                 var ext = ArchiveFormatRegistry.GetDefaultExtension(format);
                 var defaultName = $"archive_{DateTime.Now:yyyyMMdd_HHmmss}{ext}";
                 ClosePathPicker();
-                _view.dialogFormat.value = format == ArchiveFormat.TarGzip ? 1 : 0;
                 ShowCreateDialog(_pickerPath, defaultName);
             }
             else if (_pickerMode == PathPickerMode.ExtractDestination)
@@ -1571,13 +1567,16 @@ namespace SCZip.UI
             if (!AppServices.FeatureGate.CanCreate(format))
                 format = ArchiveFormat.Zip;
 
-            _view.dialogFormat.SetValueWithoutNotify(format == ArchiveFormat.TarGzip ? 1 : 0);
-            _view.dialogFormat.RefreshShownValue();
+            var selector = RequireFormatSelector();
+            selector?.SetFormat(format, false);
             _view.dialogTitle.text = "新建压缩包";
             _view.dialogMessage.text = $"保存到：\n{FormatSaveLocationDisplay(saveDir)}";
             _view.dialogInput.text = ApplyArchiveExtension(defaultName, format);
             SetDialogInputVisible(true);
-            SetVisible(_view.dialogFormat.gameObject, true);
+            if (selector != null)
+                SetVisible(selector.gameObject, true);
+            if (_view.dialogFormat != null)
+                SetVisible(_view.dialogFormat.gameObject, false);
             _dialogOkAction = () =>
             {
                 var name = _view.dialogInput.text?.Trim();
@@ -1634,7 +1633,10 @@ namespace SCZip.UI
             _dialogOkAction = onOk;
             _view.dialogInput.text = defaultInput ?? "";
             SetDialogInputVisible(showInput);
-            SetVisible(_view.dialogFormat.gameObject, false);
+            if (_formatSelector != null)
+                SetVisible(_formatSelector.gameObject, false);
+            if (_view.dialogFormat != null)
+                SetVisible(_view.dialogFormat.gameObject, false);
             SetVisible(_view.dialogOverlay, true);
 
             if (showInput)
