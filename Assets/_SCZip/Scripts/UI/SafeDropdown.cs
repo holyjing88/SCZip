@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -13,21 +14,39 @@ namespace SCZip.UI
             if (legacy == null)
                 return null;
 
-            if (legacy is SafeDropdown safe)
-                return safe;
+            if (legacy is SafeDropdown safeDropdown)
+                return safeDropdown;
 
             var go = legacy.gameObject;
-            var options = legacy.options;
-            var value = legacy.value;
             var target = legacy.targetGraphic;
-            Destroy(legacy);
 
-            safe = go.AddComponent<SafeDropdown>();
-            safe.targetGraphic = target;
-            safe.options = options;
-            safe.value = value;
-            safe.alphaFadeSpeed = 0f;
-            return safe;
+            Object.DestroyImmediate(legacy);
+
+            var migrated = go.AddComponent<SafeDropdown>();
+            if (migrated == null)
+            {
+                Debug.LogError("[SCZip] Failed to migrate DialogFormat to SafeDropdown.");
+                return null;
+            }
+
+            if (target != null)
+                migrated.targetGraphic = target;
+
+            migrated.alphaFadeSpeed = 0f;
+            return migrated;
+        }
+
+        public void ApplySavedState(IReadOnlyList<Dropdown.OptionData> options, int value)
+        {
+            if (options != null && options.Count > 0)
+                this.options = new List<Dropdown.OptionData>(options);
+
+            if (this.options.Count == 0)
+                return;
+
+            var clamped = Mathf.Clamp(value, 0, this.options.Count - 1);
+            SetValueWithoutNotify(clamped);
+            RefreshShownValue();
         }
 
         protected override void DestroyItem(DropdownItem item)

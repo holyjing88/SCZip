@@ -209,8 +209,6 @@ namespace SCZip.UI
                 _view.pickerNativeBrowse.onClick.AddListener(OnNativeFolderBrowse);
             _view.dialogCancel.onClick.AddListener(HideDialog);
             _view.dialogOk.onClick.AddListener(OnDialogOk);
-
-            EnsureDialogFormatReady();
         }
 
         private static void AddClick(GameObject go, UnityEngine.Events.UnityAction action)
@@ -1370,14 +1368,27 @@ namespace SCZip.UI
 
             HideLegacyFormatSelector();
 
+            List<Dropdown.OptionData> savedOptions = null;
+            var savedValue = 0;
+
             if (_view.dialogFormat is not SafeDropdown)
+            {
+                savedOptions = _view.dialogFormat.options;
+                savedValue = _view.dialogFormat.value;
                 _view.dialogFormat = SafeDropdown.Migrate(_view.dialogFormat);
+                if (_view.dialogFormat == null)
+                    return null;
+            }
 
             UiDropdownBuilder.Ensure(_view.dialogFormat, _font, CreateFormatLabels);
             DropdownInputSystemBridge.EnsureOn(_view.dialogFormat);
 
             if (_view.dialogFormat is SafeDropdown safe)
+            {
                 safe.alphaFadeSpeed = 0f;
+                if (savedOptions != null)
+                    safe.ApplySavedState(savedOptions, savedValue);
+            }
 
             var dialog = _view.dialogFormat.transform.parent;
             if (dialog != null && dialog.Find("DialogFormatLabel") == null)
