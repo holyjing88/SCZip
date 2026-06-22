@@ -24,6 +24,7 @@ namespace SCZip.UI
         private PathPickerMode _pickerMode;
         private string _pickerPath;
         private Action _dialogOkAction;
+        private List<ArchiveFormat> _creatableFormats = new();
         private Font _font;
         private Coroutine _fileListRebuildCoroutine;
         private readonly Dictionary<NavigationSource, Button> _navButtons = new();
@@ -953,8 +954,16 @@ namespace SCZip.UI
             return entry.ArchiveFormat switch
             {
                 ArchiveFormat.Zip => "📦",
+                ArchiveFormat.SevenZip => "📦",
+                ArchiveFormat.Rar => "📦",
                 ArchiveFormat.TarGzip => "📦",
+                ArchiveFormat.TarBzip2 => "📦",
+                ArchiveFormat.TarXz => "📦",
+                ArchiveFormat.TarZstd => "📦",
                 ArchiveFormat.Gzip => "📦",
+                ArchiveFormat.Bzip2 => "📦",
+                ArchiveFormat.Xz => "📦",
+                ArchiveFormat.Zstd => "📦",
                 _ when entry.Name.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
                          entry.Name.EndsWith(".png", StringComparison.OrdinalIgnoreCase) => "🖼",
                 _ when entry.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) => "📄",
@@ -1359,14 +1368,14 @@ namespace SCZip.UI
                 le.preferredHeight = 68;
         }
 
-        private static readonly string[] CreateFormatLabels = { "ZIP (.zip)", "TAR.GZ (.tar.gz)" };
-
         private Dropdown RequireFormatDropdown()
         {
             if (_view.dialogFormat == null)
                 return null;
 
             HideLegacyFormatSelector();
+            _creatableFormats = AppServices.Archive.GetCreatableFormats().ToList();
+            var labels = _creatableFormats.Select(ArchiveFormatRegistry.GetDisplayLabel).ToList();
 
             List<Dropdown.OptionData> savedOptions = null;
             var savedValue = 0;
@@ -1380,14 +1389,16 @@ namespace SCZip.UI
                     return null;
             }
 
-            UiDropdownBuilder.Ensure(_view.dialogFormat, _font, CreateFormatLabels);
+            UiDropdownBuilder.Ensure(_view.dialogFormat, _font, labels);
             DropdownInputSystemBridge.EnsureOn(_view.dialogFormat);
 
             if (_view.dialogFormat is SafeDropdown safe)
             {
                 safe.alphaFadeSpeed = 0f;
-                if (savedOptions != null)
-                    safe.ApplySavedState(savedOptions, savedValue);
+                if (labels.Count > 0)
+                    safe.ApplySavedState(
+                        labels.Select(label => new Dropdown.OptionData(label)).ToList(),
+                        Mathf.Clamp(savedOptions != null ? savedValue : 0, 0, labels.Count - 1));
             }
 
             var dialog = _view.dialogFormat.transform.parent;
@@ -1443,10 +1454,10 @@ namespace SCZip.UI
 
             UiEventSystemSetup.ClearUiSelection();
 
-            var format = index == 1 ? ArchiveFormat.TarGzip : ArchiveFormat.Zip;
+            var format = GetCreateFormatAt(index);
             if (!AppServices.FeatureGate.CanCreate(format))
             {
-                ShowToast("TAR.GZ 需要 SCZip Pro，已切换为 ZIP");
+                ShowToast($"{ArchiveFormatRegistry.GetDisplayLabel(format)} 不可用，已切换为 ZIP");
                 _view.dialogFormat.SetValueWithoutNotify(0);
                 format = ArchiveFormat.Zip;
             }
@@ -1455,10 +1466,17 @@ namespace SCZip.UI
             _view.dialogFormat.RefreshShownValue();
         }
 
+        private ArchiveFormat GetCreateFormatAt(int index)
+        {
+            if (_creatableFormats == null || _creatableFormats.Count == 0)
+                return ArchiveFormat.Zip;
+
+            index = Mathf.Clamp(index, 0, _creatableFormats.Count - 1);
+            return _creatableFormats[index];
+        }
+
         private ArchiveFormat GetSelectedCreateFormat() =>
-            _view.dialogFormat != null && _view.dialogFormat.value == 1
-                ? ArchiveFormat.TarGzip
-                : ArchiveFormat.Zip;
+            GetCreateFormatAt(_view.dialogFormat != null ? _view.dialogFormat.value : 0);
 
         private static string ApplyArchiveExtension(string name, ArchiveFormat format)
         {
@@ -1468,18 +1486,8 @@ namespace SCZip.UI
             return StripArchiveExtension(name.Trim()) + ArchiveFormatRegistry.GetDefaultExtension(format);
         }
 
-        private static string StripArchiveExtension(string name)
-        {
-            if (name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
-                return name[..^7];
-            if (name.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase))
-                return name[..^4];
-            if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                return name[..^4];
-            if (name.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
-                return name[..^3];
-            return name;
-        }
+        private static string StripArchiveExtension(string name) =>
+            ArchiveFormatRegistry.StripKnownExtension(name);
 
         private void BuildPickerRow(string name, string path)
         {
@@ -1611,8 +1619,13 @@ namespace SCZip.UI
             if (!AppServices.FeatureGate.CanCreate(format))
                 format = ArchiveFormat.Zip;
 
-            _view.dialogFormat.SetValueWithoutNotify(format == ArchiveFormat.TarGzip ? 1 : 0);
+            var formatIndex = _creatableFormats.IndexOf(format);
+            if (formatIndex < 0)
+                formatIndex = 0;
+
+            _view.dialogFormat.SetValueWithoutNotify(formatIndex);
             _view.dialogFormat.RefreshShownValue();
+            format = GetCreateFormatAt(formatIndex);
             _view.dialogTitle.text = "新建压缩包";
             _view.dialogMessage.text = $"保存到：\n{FormatSaveLocationDisplay(saveDir)}";
             _view.dialogInput.text = ApplyArchiveExtension(defaultName, format);
@@ -1626,7 +1639,7 @@ namespace SCZip.UI
                 var outFormat = GetSelectedCreateFormat();
                 if (!AppServices.FeatureGate.CanCreate(outFormat))
                 {
-                    ShowToast("TAR.GZ 需要 SCZip Pro，已使用 ZIP");
+                    ShowToast($"{ArchiveFormatRegistry.GetDisplayLabel(outFormat)} 不可用，已使用 ZIP");
                     outFormat = ArchiveFormat.Zip;
                 }
 

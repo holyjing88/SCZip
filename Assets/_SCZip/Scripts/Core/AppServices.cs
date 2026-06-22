@@ -24,6 +24,7 @@ namespace SCZip.Core
             if (_initialized) return;
 
             FeatureGate = new FeatureGate();
+            SharpCompressBootstrap.EnsureInitialized();
             FileSystem = new LocalFileSystemService();
             Archive = new ArchiveService(FeatureGate);
             Recent = new RecentService();

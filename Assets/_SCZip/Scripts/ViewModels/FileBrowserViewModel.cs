@@ -290,8 +290,8 @@ namespace SCZip.ViewModels
                     _archiveItems = entries.ToList();
                     _items.Clear();
                     var info = new FileInfo(frame.ArchivePath);
-                    var fmtLabel = ArchiveFormatRegistry.DetectByPath(frame.ArchivePath) == ArchiveFormat.TarGzip
-                        ? "TAR.GZ" : "ZIP";
+                    var fmt = ArchiveFormatRegistry.DetectByPath(frame.ArchivePath);
+                    var fmtLabel = ArchiveFormatRegistry.GetDisplayLabel(fmt).Split(' ')[0];
                     Subtitle = $"{_archiveItems.Count} files · {FileEntry.FormatSize(info.Length)} · {fmtLabel}";
                 }
                 else

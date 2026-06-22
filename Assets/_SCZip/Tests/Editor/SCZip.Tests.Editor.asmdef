@@ -1,18 +1,20 @@
 {
-    "name": "SCZip.Tests",
-    "rootNamespace": "SCZip.Tests",
+    "name": "SCZip.Tests.Editor",
+    "rootNamespace": "SCZip.Tests.EditMode",
     "references": [
         "SCZip",
         "Unity.InputSystem"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
         "nunit.framework.dll"
     ],
-    "autoReferenced": true,
+    "autoReferenced": false,
     "optionalUnityReferences": [
         "TestAssemblies"
     ],

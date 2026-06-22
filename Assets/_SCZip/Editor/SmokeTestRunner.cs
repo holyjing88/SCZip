@@ -1,10 +1,7 @@
 #if UNITY_EDITOR
 using System.IO;
-using System.Linq;
-using System.Threading;
 using SCZip.Core;
-using SCZip.Domain;
-using SCZip.Services;
+using SCZip.Infrastructure.Testing;
 using SCZip.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -16,7 +13,7 @@ namespace SCZip.Editor
     {
         public static void Run() => RunInternal(exitOnComplete: true);
 
-        /// <summary>Editor menu — run ZIP/TAR smoke without quitting Unity.</summary>
+        /// <summary>Editor menu — run archive roundtrip smoke without quitting Unity.</summary>
         public static void RunFromMenu()
         {
             try
@@ -37,11 +34,10 @@ namespace SCZip.Editor
             {
                 AppServices.Initialize();
                 RunFileSystemSmoke();
-                RunZipSmoke();
-                RunTarGzipSmoke();
+                ArchiveRoundtripHarness.RunAll(AppServices.FileSystem.MyFilesRoot);
                 SceneBootstrapper.SetupMainScene();
                 ValidateMainScene();
-                Debug.Log("[SCZip] SMOKE_PASS all checks OK");
+                Debug.Log("[SCZip] SMOKE_PASS all archive roundtrip checks OK");
                 if (exitOnComplete)
                     EditorApplication.Exit(0);
             }
@@ -64,85 +60,9 @@ namespace SCZip.Editor
 
             var f1 = Path.Combine(testDir, "a.txt");
             File.WriteAllText(f1, "hello");
-            var entries = fs.ListDirectoryAsync(testDir, NavigationSource.MyFiles).GetAwaiter().GetResult();
-            if (!entries.Any(e => e.Name == "a.txt"))
+            var entries = fs.ListDirectoryAsync(testDir, Domain.NavigationSource.MyFiles).GetAwaiter().GetResult();
+            if (!System.Linq.Enumerable.Any(entries, e => e.Name == "a.txt"))
                 throw new System.Exception("ListDirectory missing a.txt");
-        }
-
-        private static void RunZipSmoke()
-        {
-            var fs = AppServices.FileSystem;
-            var dir = Path.Combine(fs.MyFilesRoot, "_smoke_zip");
-            if (Directory.Exists(dir))
-                Directory.Delete(dir, true);
-            Directory.CreateDirectory(dir);
-
-            var src = Path.Combine(dir, "src.txt");
-            File.WriteAllText(src, "zip-content");
-            var zip = Path.Combine(dir, "test.zip");
-            var extractDir = Path.Combine(dir, "out");
-
-            AppServices.Archive.CreateAsync(new CreateArchiveOptions
-            {
-                Format = ArchiveFormat.Zip,
-                OutputPath = zip,
-                SourcePaths = new[] { src },
-                Level = ArchiveCompressionLevel.Normal
-            }, null, CancellationToken.None).GetAwaiter().GetResult();
-
-            if (!File.Exists(zip))
-                throw new System.Exception("ZIP not created");
-
-            var list = AppServices.Archive.ListEntriesAsync(zip, new ArchiveOpenOptions(), CancellationToken.None)
-                .GetAwaiter().GetResult();
-            if (list.Count == 0)
-                throw new System.Exception("ZIP list empty");
-
-            Directory.CreateDirectory(extractDir);
-            AppServices.Archive.ExtractAsync(new ExtractOptions
-            {
-                ArchivePath = zip,
-                DestinationDirectory = extractDir
-            }, null, CancellationToken.None).GetAwaiter().GetResult();
-
-            if (!File.Exists(Path.Combine(extractDir, "src.txt")))
-                throw new System.Exception("ZIP extract failed");
-        }
-
-        private static void RunTarGzipSmoke()
-        {
-            var fs = AppServices.FileSystem;
-            var dir = Path.Combine(fs.MyFilesRoot, "_smoke_tgz");
-            if (Directory.Exists(dir))
-                Directory.Delete(dir, true);
-            Directory.CreateDirectory(dir);
-
-            var src = Path.Combine(dir, "data.txt");
-            File.WriteAllText(src, "tgz");
-            var tgz = Path.Combine(dir, "test.tar.gz");
-            var extractDir = Path.Combine(dir, "out");
-
-            AppServices.Archive.CreateAsync(new CreateArchiveOptions
-            {
-                Format = ArchiveFormat.TarGzip,
-                OutputPath = tgz,
-                SourcePaths = new[] { src }
-            }, null, CancellationToken.None).GetAwaiter().GetResult();
-
-            var list = AppServices.Archive.ListEntriesAsync(tgz, new ArchiveOpenOptions(), CancellationToken.None)
-                .GetAwaiter().GetResult();
-            if (list.Count == 0)
-                throw new System.Exception("TAR.GZ list empty");
-
-            Directory.CreateDirectory(extractDir);
-            AppServices.Archive.ExtractAsync(new ExtractOptions
-            {
-                ArchivePath = tgz,
-                DestinationDirectory = extractDir
-            }, null, CancellationToken.None).GetAwaiter().GetResult();
-
-            if (!File.Exists(Path.Combine(extractDir, "data.txt")))
-                throw new System.Exception("TAR.GZ extract failed");
         }
 
         private static void ValidateMainScene()
@@ -159,7 +79,7 @@ namespace SCZip.Editor
             if (canvas == null)
                 throw new System.Exception("UICanvas not found in Main scene");
 
-            var view = canvas.GetComponent<SCZip.UI.AppShellView>();
+            var view = canvas.GetComponent<AppShellView>();
             if (view == null)
                 throw new System.Exception("AppShellView missing on UICanvas");
 

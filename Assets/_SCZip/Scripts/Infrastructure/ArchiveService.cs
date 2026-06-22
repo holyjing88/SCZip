@@ -20,7 +20,16 @@ namespace SCZip.Infrastructure
             _providers = new Dictionary<ArchiveFormat, IArchiveProvider>
             {
                 [ArchiveFormat.Zip] = new ZipArchiveProvider(),
-                [ArchiveFormat.TarGzip] = new TarGzipArchiveProvider()
+                [ArchiveFormat.TarGzip] = new TarGzipArchiveProvider(),
+                [ArchiveFormat.Gzip] = new GzipArchiveProvider(),
+                [ArchiveFormat.SevenZip] = new SevenZipArchiveProvider(),
+                [ArchiveFormat.Rar] = new RarArchiveProvider(),
+                [ArchiveFormat.Bzip2] = new Bzip2ArchiveProvider(),
+                [ArchiveFormat.TarBzip2] = new TarBzip2ArchiveProvider(),
+                [ArchiveFormat.Xz] = new XzArchiveProvider(),
+                [ArchiveFormat.TarXz] = new TarXzArchiveProvider(),
+                [ArchiveFormat.Zstd] = new ZstdArchiveProvider(),
+                [ArchiveFormat.TarZstd] = new TarZstdArchiveProvider()
             };
         }
 
@@ -36,10 +45,13 @@ namespace SCZip.Infrastructure
             _providers.TryGetValue(format, out var p) ? p : null;
 
         public IReadOnlyList<ArchiveFormat> GetCreatableFormats() =>
-            _providers.Values.Where(p => p.CanCreate && _featureGate.CanCreate(p.Format)).Select(p => p.Format).ToList();
+            ArchiveFormatRegistry.GetCreatableDisplayOrder()
+                .Where(fmt => _providers.TryGetValue(fmt, out var p) && p.CanCreate && _featureGate.CanCreate(fmt))
+                .ToList();
 
         public IReadOnlyList<ArchiveFormat> GetExtractableFormats() =>
-            _providers.Values.Where(p => p.CanExtract && _featureGate.CanExtract(p.Format)).Select(p => p.Format).ToList();
+            _providers.Values.Where(p => p.CanExtract && _featureGate.CanExtract(p.Format)).Select(p => p.Format)
+                .Distinct().ToList();
 
         public Task<IReadOnlyList<ArchiveEntry>> ListEntriesAsync(string path, ArchiveOpenOptions options,
             CancellationToken ct)
@@ -52,12 +64,18 @@ namespace SCZip.Infrastructure
         public Task ExtractAsync(ExtractOptions options, IProgress<ArchiveProgress> progress, CancellationToken ct)
         {
             var provider = GetProvider(DetectFormat(options.ArchivePath));
+            if (provider == null)
+                throw new NotSupportedException($"Unsupported archive: {options.ArchivePath}");
+
             return provider.ExtractAsync(options, progress, ct);
         }
 
         public Task CreateAsync(CreateArchiveOptions options, IProgress<ArchiveProgress> progress, CancellationToken ct)
         {
             var provider = GetProvider(options.Format);
+            if (provider == null || !provider.CanCreate)
+                throw new NotSupportedException($"Unsupported create format: {options.Format}");
+
             return provider.CreateAsync(options, progress, ct);
         }
     }

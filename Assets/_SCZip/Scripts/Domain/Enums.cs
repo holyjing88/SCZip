@@ -5,7 +5,15 @@ namespace SCZip.Domain
         Unknown,
         Zip,
         TarGzip,
-        Gzip
+        Gzip,
+        SevenZip,
+        Rar,
+        Bzip2,
+        TarBzip2,
+        Xz,
+        TarXz,
+        Zstd,
+        TarZstd
     }
 
     public enum NavigationSource

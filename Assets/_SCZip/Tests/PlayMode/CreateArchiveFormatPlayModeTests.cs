@@ -1,7 +1,9 @@
 using System.Collections;
+using System.Linq;
 using NUnit.Framework;
 using SCZip.Core;
 using SCZip.Domain;
+using SCZip.Infrastructure;
 using SCZip.UI;
 using UnityEngine;
 using UnityEngine.TestTools;
@@ -19,9 +21,14 @@ namespace SCZip.Tests.PlayMode
             var view = AppShellPlayModeHarness.RequireView();
             Assert.NotNull(view.dialogFormat, "dialogFormat missing");
 
+            var creatable = AppServices.Archive.GetCreatableFormats();
+            var labels = creatable.Select(ArchiveFormatRegistry.GetDisplayLabel).ToArray();
+            var tarGzIndex = creatable.ToList().IndexOf(ArchiveFormat.TarGzip);
+            Assert.GreaterOrEqual(tarGzIndex, 0, "TAR.GZ should be creatable");
+
             var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             var dropdown = SafeDropdown.Migrate(view.dialogFormat);
-            UiDropdownBuilder.Ensure(dropdown, font, new[] { "ZIP (.zip)", "TAR.GZ (.tar.gz)" });
+            UiDropdownBuilder.Ensure(dropdown, font, labels);
             DropdownInputSystemBridge.EnsureOn(dropdown);
             dropdown.alphaFadeSpeed = 0f;
 
@@ -31,7 +38,7 @@ namespace SCZip.Tests.PlayMode
             view.dialogInput.text = "archive_test.zip";
             yield return null;
 
-            dropdown.value = 1;
+            dropdown.value = tarGzIndex;
             yield return null;
             yield return null;
 
@@ -39,7 +46,7 @@ namespace SCZip.Tests.PlayMode
 
             if (AppServices.FeatureGate.CanCreate(ArchiveFormat.TarGzip))
             {
-                Assert.AreEqual(1, dropdown.value);
+                Assert.AreEqual(tarGzIndex, dropdown.value);
                 Assert.IsTrue(view.dialogInput.text.EndsWith(".tar.gz"),
                     $"expected .tar.gz extension, got '{view.dialogInput.text}'");
             }
@@ -73,12 +80,15 @@ namespace SCZip.Tests.PlayMode
             Assert.IsTrue(view.dialogFormat.gameObject.activeSelf, "format dropdown should be visible");
             Assert.IsTrue(view.dialogFormat is SafeDropdown, "dropdown should migrate to SafeDropdown");
 
-            view.dialogFormat.value = 1;
-            yield return null;
-            yield return null;
-
-            UiEventSystemSetup.SanitizeStaleHoverTargets();
-            Assert.AreNotEqual(-1, view.dialogFormat.value);
+            var creatable = AppServices.Archive.GetCreatableFormats();
+            if (creatable.Count > 1)
+            {
+                view.dialogFormat.value = 1;
+                yield return null;
+                yield return null;
+                UiEventSystemSetup.SanitizeStaleHoverTargets();
+                Assert.AreNotEqual(-1, view.dialogFormat.value);
+            }
         }
     }
 }

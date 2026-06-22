@@ -8,6 +8,10 @@ namespace SCZip.UI
     /// <summary>Builds a standard uGUI Dropdown (caption, arrow, template) when scene assets are incomplete.</summary>
     public static class UiDropdownBuilder
     {
+        private const float ItemHeight = 32f;
+        private const float MaxVisibleItems = 6f;
+        private const float ScrollbarWidth = 18f;
+
         public static void Ensure(Dropdown dropdown, Font font, IReadOnlyList<string> optionLabels,
             Color? textColor = null)
         {
@@ -16,11 +20,8 @@ namespace SCZip.UI
 
             var color = textColor ?? Color.black;
 
-            if (optionLabels != null && optionLabels.Count > 0 &&
-                (dropdown.options == null || dropdown.options.Count == 0))
-            {
+            if (optionLabels != null && optionLabels.Count > 0)
                 dropdown.options = optionLabels.Select(label => new Dropdown.OptionData(label)).ToList();
-            }
 
             if (dropdown.captionText == null)
             {
@@ -72,11 +73,123 @@ namespace SCZip.UI
                     dropdown.itemText = itemLabel;
             }
 
+            EnsureScrollableTemplate(dropdown.template, font, color);
+
             var graphic = dropdown.GetComponent<Image>();
             if (graphic != null && dropdown.targetGraphic == null)
                 dropdown.targetGraphic = graphic;
 
             dropdown.RefreshShownValue();
+        }
+
+        private static void EnsureScrollableTemplate(RectTransform template, Font font, Color textColor)
+        {
+            if (template == null)
+                return;
+
+            template.sizeDelta = new Vector2(0f, ItemHeight * MaxVisibleItems);
+
+            var scrollRect = template.GetComponentInChildren<ScrollRect>(true);
+            if (scrollRect == null)
+            {
+                var scrollGo = new GameObject("Scroll", typeof(RectTransform));
+                scrollGo.transform.SetParent(template, false);
+                Stretch(scrollGo.GetComponent<RectTransform>());
+                scrollRect = scrollGo.AddComponent<ScrollRect>();
+            }
+
+            scrollRect.horizontal = false;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 24f;
+
+            var viewport = scrollRect.viewport != null
+                ? scrollRect.viewport
+                : scrollRect.transform.Find("Viewport") as RectTransform;
+            if (viewport == null)
+            {
+                var viewportGo = new GameObject("Viewport", typeof(RectTransform));
+                viewportGo.transform.SetParent(scrollRect.transform, false);
+                viewport = viewportGo.GetComponent<RectTransform>();
+                Stretch(viewport);
+                var viewportImage = viewportGo.GetComponent<Image>() ?? viewportGo.AddComponent<Image>();
+                viewportImage.color = Color.white;
+                var mask = viewportGo.GetComponent<Mask>() ?? viewportGo.AddComponent<Mask>();
+                mask.showMaskGraphic = false;
+            }
+
+            viewport.offsetMax = new Vector2(-ScrollbarWidth, 0f);
+            scrollRect.viewport = viewport;
+
+            var content = scrollRect.content != null
+                ? scrollRect.content
+                : viewport.Find("Content") as RectTransform;
+            if (content == null)
+            {
+                var contentGo = new GameObject("Content", typeof(RectTransform));
+                contentGo.transform.SetParent(viewport, false);
+                content = contentGo.GetComponent<RectTransform>();
+                content.anchorMin = new Vector2(0f, 1f);
+                content.anchorMax = new Vector2(1f, 1f);
+                content.pivot = new Vector2(0.5f, 1f);
+                content.anchoredPosition = Vector2.zero;
+                content.sizeDelta = new Vector2(0f, ItemHeight);
+            }
+
+            var layout = content.GetComponent<VerticalLayoutGroup>() ?? content.gameObject.AddComponent<VerticalLayoutGroup>();
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+
+            var fitter = content.GetComponent<ContentSizeFitter>() ??
+                         content.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            scrollRect.content = content;
+
+            var scrollbar = scrollRect.verticalScrollbar != null
+                ? scrollRect.verticalScrollbar
+                : CreateVerticalScrollbar(scrollRect.transform, font);
+            scrollRect.verticalScrollbar = scrollbar;
+            scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+        }
+
+        private static Scrollbar CreateVerticalScrollbar(Transform parent, Font font)
+        {
+            var scrollbarGo = new GameObject("Scrollbar Vertical", typeof(RectTransform));
+            scrollbarGo.transform.SetParent(parent, false);
+            var scrollbarRt = scrollbarGo.GetComponent<RectTransform>();
+            scrollbarRt.anchorMin = new Vector2(1f, 0f);
+            scrollbarRt.anchorMax = new Vector2(1f, 1f);
+            scrollbarRt.pivot = new Vector2(1f, 1f);
+            scrollbarRt.anchoredPosition = Vector2.zero;
+            scrollbarRt.sizeDelta = new Vector2(ScrollbarWidth, 0f);
+
+            var trackImage = scrollbarGo.AddComponent<Image>();
+            trackImage.color = new Color(0.9f, 0.9f, 0.9f);
+
+            var scrollbar = scrollbarGo.AddComponent<Scrollbar>();
+            scrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+            var slidingAreaGo = new GameObject("Sliding Area", typeof(RectTransform));
+            slidingAreaGo.transform.SetParent(scrollbarGo.transform, false);
+            Stretch(slidingAreaGo.GetComponent<RectTransform>());
+
+            var handleGo = new GameObject("Handle", typeof(RectTransform));
+            handleGo.transform.SetParent(slidingAreaGo.transform, false);
+            var handleRt = handleGo.GetComponent<RectTransform>();
+            handleRt.anchorMin = Vector2.zero;
+            handleRt.anchorMax = Vector2.one;
+            handleRt.offsetMin = new Vector2(4f, 4f);
+            handleRt.offsetMax = new Vector2(-4f, -4f);
+
+            var handleImage = handleGo.AddComponent<Image>();
+            handleImage.color = new Color(0.55f, 0.55f, 0.55f);
+            scrollbar.handleRect = handleRt;
+            scrollbar.targetGraphic = handleImage;
+
+            return scrollbar;
         }
 
         private static RectTransform CreateTemplate(Transform parent, Font font, Color textColor, out Text itemText)
@@ -88,7 +201,7 @@ namespace SCZip.UI
             templateRt.anchorMax = new Vector2(1f, 0f);
             templateRt.pivot = new Vector2(0.5f, 1f);
             templateRt.anchoredPosition = new Vector2(0f, 2f);
-            templateRt.sizeDelta = new Vector2(0f, 120f);
+            templateRt.sizeDelta = new Vector2(0f, ItemHeight * MaxVisibleItems);
             template.SetActive(false);
 
             var scrollGo = new GameObject("Scroll", typeof(RectTransform));
@@ -96,13 +209,17 @@ namespace SCZip.UI
             Stretch(scrollGo.GetComponent<RectTransform>());
             var scroll = scrollGo.AddComponent<ScrollRect>();
             scroll.horizontal = false;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 24f;
 
             var viewportGo = new GameObject("Viewport", typeof(RectTransform));
             viewportGo.transform.SetParent(scrollGo.transform, false);
-            Stretch(viewportGo.GetComponent<RectTransform>());
+            var viewportRt = viewportGo.GetComponent<RectTransform>();
+            Stretch(viewportRt);
+            viewportRt.offsetMax = new Vector2(-ScrollbarWidth, 0f);
             viewportGo.AddComponent<Image>().color = Color.white;
             viewportGo.AddComponent<Mask>().showMaskGraphic = false;
-            scroll.viewport = viewportGo.GetComponent<RectTransform>();
+            scroll.viewport = viewportRt;
 
             var contentGo = new GameObject("Content", typeof(RectTransform));
             contentGo.transform.SetParent(viewportGo.transform, false);
@@ -111,7 +228,15 @@ namespace SCZip.UI
             contentRt.anchorMax = new Vector2(1f, 1f);
             contentRt.pivot = new Vector2(0.5f, 1f);
             contentRt.anchoredPosition = Vector2.zero;
-            contentRt.sizeDelta = new Vector2(0f, 32f);
+            contentRt.sizeDelta = new Vector2(0f, ItemHeight);
+            var contentLayout = contentGo.AddComponent<VerticalLayoutGroup>();
+            contentLayout.childControlWidth = true;
+            contentLayout.childControlHeight = true;
+            contentLayout.childForceExpandWidth = true;
+            contentLayout.childForceExpandHeight = false;
+            var contentFitter = contentGo.AddComponent<ContentSizeFitter>();
+            contentFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            contentFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             scroll.content = contentRt;
 
             var itemGo = new GameObject("Item", typeof(RectTransform));
@@ -119,7 +244,9 @@ namespace SCZip.UI
             var itemRt = itemGo.GetComponent<RectTransform>();
             itemRt.anchorMin = new Vector2(0f, 0.5f);
             itemRt.anchorMax = new Vector2(1f, 0.5f);
-            itemRt.sizeDelta = new Vector2(0f, 32f);
+            itemRt.sizeDelta = new Vector2(0f, ItemHeight);
+            var itemLayout = itemGo.AddComponent<LayoutElement>();
+            itemLayout.preferredHeight = ItemHeight;
             var toggle = itemGo.AddComponent<Toggle>();
             var itemBg = itemGo.AddComponent<Image>();
             itemBg.color = new Color(0.95f, 0.95f, 0.95f);
@@ -139,6 +266,9 @@ namespace SCZip.UI
             itemText.color = textColor;
             itemText.alignment = TextAnchor.MiddleLeft;
             itemText.raycastTarget = true;
+
+            scroll.verticalScrollbar = CreateVerticalScrollbar(scrollGo.transform, font);
+            scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
 
             return templateRt;
         }

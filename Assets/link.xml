@@ -1,3 +1,8 @@
 <linker>
   <assembly fullname="SCZip" preserve="all"/>
+  <assembly fullname="SharpCompress" preserve="all"/>
+  <assembly fullname="ZstdSharp" preserve="all"/>
+  <assembly fullname="System.Text.Encoding.CodePages" preserve="all"/>
+  <assembly fullname="System.Runtime.CompilerServices.Unsafe" preserve="all"/>
+  <assembly fullname="System.Threading.Tasks.Extensions" preserve="all"/>
 </linker>
