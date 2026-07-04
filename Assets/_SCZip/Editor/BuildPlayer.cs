@@ -41,6 +41,22 @@ namespace SCZip.Editor
             });
         }
 
+        public static void BuildWindows()
+        {
+            var output = GetArg("-customBuildPath") ?? Path.Combine("Build", "PC", "SCZip.exe");
+            var dir = Path.GetDirectoryName(output);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            Run(new BuildPlayerOptions
+            {
+                scenes = Scenes,
+                locationPathName = output,
+                target = BuildTarget.StandaloneWindows64,
+                options = BuildOptions.None
+            });
+        }
+
         private static void Run(BuildPlayerOptions options)
         {
             var report = UnityEditor.BuildPipeline.BuildPlayer(options);

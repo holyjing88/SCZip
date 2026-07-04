@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using SCZip.Core;
 using SCZip.Domain;
 using SCZip.Services;
 using UnityEngine;
@@ -15,9 +16,11 @@ namespace SCZip.Infrastructure
         public string StorageRoot { get; private set; }
         public string PhotosRoot { get; private set; }
         public string MusicRoot { get; private set; }
+        public string ExecutableDirectory { get; private set; }
 
         public LocalFileSystemService()
         {
+            ExecutableDirectory = AppPaths.GetExecutableDirectory();
             MyFilesRoot = Path.Combine(Application.persistentDataPath, "SCZip", "MyFiles");
             StorageRoot = Path.Combine(Application.persistentDataPath, "SCZip", "Storage");
             PhotosRoot = Path.Combine(Application.persistentDataPath, "SCZip", "Photos");

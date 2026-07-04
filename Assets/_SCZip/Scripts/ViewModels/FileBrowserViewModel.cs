@@ -46,6 +46,17 @@ namespace SCZip.ViewModels
             }
         }
 
+        public void NavigateToStartupFolder()
+        {
+            AppServices.EnsureInitialized();
+            var dir = AppServices.FileSystem.ExecutableDirectory;
+            var title = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            if (string.IsNullOrEmpty(title))
+                title = "Files";
+
+            NavigateToFolder(dir, title, ResolveSourceForPath(dir));
+        }
+
         public void NavigateToSource(NavigationSource source)
         {
             AppServices.EnsureInitialized();

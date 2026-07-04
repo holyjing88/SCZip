@@ -9,6 +9,7 @@ namespace SCZip.Services
         string StorageRoot { get; }
         string PhotosRoot { get; }
         string MusicRoot { get; }
+        string ExecutableDirectory { get; }
 
         Task<IReadOnlyList<Domain.FileEntry>> ListDirectoryAsync(string path, Domain.NavigationSource source);
         IReadOnlyList<Domain.FileEntry> ListDirectory(string path, Domain.NavigationSource source);

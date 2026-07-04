@@ -69,8 +69,8 @@ namespace SCZip.UI
             EnsureDrawerLayout();
             WireEvents();
             EnsureInitialOverlayState();
-            _vm.NavigateToSource(NavigationSource.Storage);
-            UpdateDrawerHighlight(NavigationSource.Storage);
+            _vm.NavigateToStartupFolder();
+            UpdateDrawerHighlight(_vm.CurrentSource);
             StartCoroutine(EnsureInitialListPainted());
         }
 

@@ -16,7 +16,7 @@ namespace SCZip.Tests.PlayMode
     public sealed class AppBarInteractionPlayModeTests
     {
         [UnityTest]
-        public IEnumerator Storage_shows_items_after_startup()
+        public IEnumerator Startup_shows_executable_directory()
         {
             yield return AppShellPlayModeHarness.LoadMainSceneAndWait();
 
@@ -24,9 +24,9 @@ namespace SCZip.Tests.PlayMode
             var shell = AppShellPlayModeHarness.RequireShell();
             yield return AppShellPlayModeHarness.WaitForInitialLoad(shell, view);
 
-            Assert.AreEqual(NavigationSource.Storage, shell.Browser.CurrentSource);
-            Assert.Greater(shell.Browser.Items.Count, 0, "Storage should list seeded folders/files on startup");
-            Assert.Greater(view.fileListContent.childCount, 0, "Storage rows should be painted in the file list");
+            Assert.AreEqual(AppServices.FileSystem.ExecutableDirectory, shell.Browser.CurrentFolderPath);
+            Assert.Greater(shell.Browser.Items.Count, 0, "Startup folder should list at least one entry");
+            Assert.Greater(view.fileListContent.childCount, 0, "Startup rows should be painted in the file list");
         }
 
         [UnityTest]
